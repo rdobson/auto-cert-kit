@@ -47,11 +47,12 @@ class IperfTest:
                       'buffer_length': '256K',
                       'thread_count': '1'}
 
-    def __init__(self, session, client_vm_ref, server_vm_ref, username='root', 
-                 password=DEFAULT_PASSWORD, config=None):
+    def __init__(self, session, client_vm_ref, server_vm_ref, network_ref,
+                username='root', password=DEFAULT_PASSWORD, config=None):
         self.session = session
         self.server = server_vm_ref
         self.client = client_vm_ref
+        self.network = network_ref
         self.username = username
         self.password = password
 
@@ -81,9 +82,13 @@ class IperfTest:
         self.run_iperf_server()
         log.debug("IPerf deployed and server started")
 
+        # Capture interface statistics pre test run
+
         iperf_test_inst = TimeoutFunction(self.run_iperf_client, 
                                           self.timeout,
                                           'iPerf test timed out %d' % self.timeout)
+
+        # Capture interface statistcs post test run
 
         return iperf_test_inst()
 
@@ -104,6 +109,65 @@ class IperfTest:
                              
         deploy(self.client)
         deploy(self.server)
+
+    
+    def get_iface_stats(self, vm_ref):
+        vm_host = self.session.xenap.VM.get_resident_on(vm_ref)
+
+        if self.session.xenapi.VM.get_is_control_domain(vm_ref):
+            # Handle the Dom0 case
+            pifs = self.session.xenapi.network.get_PIFs(self.network_for_test)
+            device_names = []
+            for pif in pifs:
+                host_ref = self.session.xenapi.PIF.get_device(pif)
+                if vm_host == host_ref:
+                    device_names.append(self.session.xenapi.PIF.get_device(pif))
+                  
+            if len(device_names) > 1:
+                raise Exception("Error: expected only a single device " + \
+                                "name to be found in PIF list ('%s') " + \
+                                "Instead, '%s' were returned." % 
+                                                (pifs, device_names) 
+            device_name = device_names.pop()
+
+        else:
+            # Handle the case where we are dealing with a VM
+            vm_vifs = self.session.xenapi.VM.get_VIFs(vm_ref)
+            network_vifs = self.session.xenapi.network.get_VIFs(self.network)
+    
+            int_vifs = intersection(vm_vifs, network_vifs) 
+
+            if len(int_vifs) > 1:
+                raise Exception("Error: more than one VIF connected " + \
+                                "to VM '%s' ('%s')" % (int_vifs, vm_vifs))
+
+            device_name = "eth%d" %
+                          self.session.xenapi.VIF.get_device(int_vifs.pop())
+    
+        # Make plugin call to get statistics
+        return get_iface_statistic(self.session, vm_ref, device_name)
+
+    def validate_traffic(pre_stats, post_stats, iperf_data):
+        """Compare the interface statistics before/after
+        the iperf test to make sure we are using the correct
+        interface for testing."""
+        if pre_stats.iface != post_stats.iface:
+            raise Exception("Error: comparing invalid iface " + \
+                            "stat objects '%s' '%s'" % (pre_stats.iface,
+                                                        post_stats.iface))
+
+        rx_bytes = post_stats.rx_bytes - pre_stats.rx_bytes
+        tx_bytes = post_stats.tx_bytes - pre_stats.tx_bytes
+
+        if rx_bytes < int(iperf_data['transfer']):
+            raise Exception("Error: only '%d' bytes transferred (rx). " + \
+                            "Expecting '%d' bytes." % 
+                                    (rx_bytes, iperf_data['transfer'])
+
+        if tx_bytes < int(iperf_data['transfer']):
+            raise Exception("Error: only '%d' bytes transferred (tx). " + \
+                            "Expecting '%d' bytes." % 
+                                    (tx_bytes, iperf_data['transfer'])
 
 
     def run_iperf_server(self):
@@ -390,7 +454,7 @@ class IperfTestClass(testbase.NetworkTestClass):
                   'thread_count': '4'}
 
     required_config = ['device_config']
-    
+    network_for_test = None 
     num_ips_required = 2
 
     mode = "vm-vm"
@@ -398,7 +462,12 @@ class IperfTestClass(testbase.NetworkTestClass):
     def _setup_network(self, session):
         """Utility method for returning the network reference to be used by VMs"""
         management_network_ref = get_management_network(session)
-        return [management_network_ref, self.get_networks()[0]]
+
+        # Pick a network to use for testing that exercises the device
+        # are wanting to test
+        self.network_for_test = self.get_networks()[0]
+
+        return [management_network_ref, self.network_for_test]
 
     def _setup_vms(self, session, network_refs):
         """Util function for returning VMs to run IPerf test on,
