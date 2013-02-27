@@ -80,7 +80,30 @@ class IperfTest:
         """Record the interface statistics before running any tests"""
         self.stats_rec = {self.client: self.get_iface_stats(self.client),
                           self.server: self.get_iface_stats(self.server)}
+
+
+    def validate_stats(self, bytes_sent):
+        # Load previous
+        client_stats = self.stats_rec[self.client]
+        server_stats = self.stats_rec[self.server]
+
+        # Obtain current
+        client_now_stats = self.get_iface_stats(self.client)
+        server_now_stats = self.get_iface_stats(self.server)
+
+        # Tx Path
         
+        diff_tx = client_now_stats.tx_bytes - client_stats.tx_bytes
+        if client_now_stats.tx_bytes - client_stats.tx_bytes < bytes_sent:
+            raise Exception("Expected '%d' bytes (tx) on '%s' not '%d'" % \
+                            (bytes_sent, client_stats.iface, diff_tx))
+
+        # Rx Path
+        diff_rx = client_now_stats.rx_bytes - client_stats.rx_bytes
+        if server_now_stats.rx_bytes - server_stats.rx_bytes < bytes_sent:
+            raise Exception("Expected '%d' bytes (rx) on '%s' not '%d'" % \
+                            (bytes_sent, server_stats.iface, diff_tx))
+
     def run(self):
         """This classes run test function"""
         self.deploy_iperf()
@@ -95,9 +118,14 @@ class IperfTest:
                                           self.timeout,
                                           'iPerf test timed out %d' % self.timeout)
 
+        # Run the iperf tests
+        iperf_data = iperf_test_inst()
+    
         # Capture interface statistcs post test run
+        bytes_transferred = int(iperf_data['transfer'])
+        self.validate_stats(bytes_transferred)
 
-        return iperf_test_inst()
+        return iperf_data
 
     ############# Utility Functions used by Class ###############
     def get_server_ip(self, iface='eth0'):
@@ -153,28 +181,6 @@ class IperfTest:
     
         # Make plugin call to get statistics
         return get_iface_statistics(self.session, vm_ref, device_name)
-
-    def validate_traffic(pre_stats, post_stats, iperf_data):
-        """Compare the interface statistics before/after
-        the iperf test to make sure we are using the correct
-        interface for testing."""
-        if pre_stats.iface != post_stats.iface:
-            raise Exception("Error: comparing invalid iface " + \
-                            "stat objects '%s' '%s'" % (pre_stats.iface,
-                                                        post_stats.iface))
-
-        rx_bytes = post_stats.rx_bytes - pre_stats.rx_bytes
-        tx_bytes = post_stats.tx_bytes - pre_stats.tx_bytes
-
-        if rx_bytes < int(iperf_data['transfer']):
-            raise Exception("Error: only '%d' bytes transferred (rx). " + \
-                            "Expecting '%d' bytes." % 
-                                    (rx_bytes, iperf_data['transfer']))
-
-        if tx_bytes < int(iperf_data['transfer']):
-            raise Exception("Error: only '%d' bytes transferred (tx). " + \
-                            "Expecting '%d' bytes." % 
-                                    (tx_bytes, iperf_data['transfer']))
 
 
     def run_iperf_server(self):
