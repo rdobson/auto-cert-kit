@@ -356,7 +356,7 @@ class IfaceStats(object):
        
         # Load all key/values into the class as attributes 
         for k,v in rec.iteritems():
-            setattr(self, k, v)
+            setattr(self, k, int(v))
 
     def validate_args(self, rec):
         for key in self.required_keys:
