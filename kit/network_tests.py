@@ -75,6 +75,11 @@ class IperfTest:
 
         if self.session.xenapi.VM.get_is_control_domain(self.server):
             raise Exception("Expecting Dom0 to be the client, not the server")
+
+    def record_stats(self):
+        """Record the interface statistics before running any tests"""
+        self.stats_rec = {self.client: self.get_iface_stats(self.client),
+                          self.server: self.get_iface_stats(self.server)}
         
     def run(self):
         """This classes run test function"""
@@ -83,6 +88,8 @@ class IperfTest:
         log.debug("IPerf deployed and server started")
 
         # Capture interface statistics pre test run
+
+        self.record_stats()
 
         iperf_test_inst = TimeoutFunction(self.run_iperf_client, 
                                           self.timeout,
@@ -127,7 +134,7 @@ class IperfTest:
                 raise Exception("Error: expected only a single device " + \
                                 "name to be found in PIF list ('%s') " + \
                                 "Instead, '%s' were returned." % 
-                                                (pifs, device_names) 
+                                                (pifs, device_names))
             device_name = device_names.pop()
 
         else:
@@ -141,11 +148,11 @@ class IperfTest:
                 raise Exception("Error: more than one VIF connected " + \
                                 "to VM '%s' ('%s')" % (int_vifs, vm_vifs))
 
-            device_name = "eth%d" %
+            device_name = "eth%s" % \
                           self.session.xenapi.VIF.get_device(int_vifs.pop())
     
         # Make plugin call to get statistics
-        return get_iface_statistic(self.session, vm_ref, device_name)
+        return get_iface_statistics(self.session, vm_ref, device_name)
 
     def validate_traffic(pre_stats, post_stats, iperf_data):
         """Compare the interface statistics before/after
@@ -162,12 +169,12 @@ class IperfTest:
         if rx_bytes < int(iperf_data['transfer']):
             raise Exception("Error: only '%d' bytes transferred (rx). " + \
                             "Expecting '%d' bytes." % 
-                                    (rx_bytes, iperf_data['transfer'])
+                                    (rx_bytes, iperf_data['transfer']))
 
         if tx_bytes < int(iperf_data['transfer']):
             raise Exception("Error: only '%d' bytes transferred (tx). " + \
                             "Expecting '%d' bytes." % 
-                                    (tx_bytes, iperf_data['transfer'])
+                                    (tx_bytes, iperf_data['transfer']))
 
 
     def run_iperf_server(self):
@@ -532,7 +539,9 @@ class IperfTestClass(testbase.NetworkTestClass):
         log.debug("About to run iperf test...")
 
         #Run an iperf test - if failure, an exception should be raised.
-        iperf_data = IperfTest(session, client, server, config=self.IPERF_ARGS).run()
+        iperf_data = IperfTest(session, client, server, 
+                                self.network_for_test, 
+                                config=self.IPERF_ARGS).run()
 
         return {'info': 'Test ran successfully',
                 'data': iperf_data,
