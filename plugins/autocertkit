@@ -847,7 +847,7 @@ def get_iface_stats(session, args):
         # Note, we rely on an SSH key being setup for this
         # droid VM.
 
-        call = [SSH, vm_m_ip, '/sbin/ethtool', '-S', iface]     
+        call = [SSH, vm_m_ip, '/sbin/ethtool', '-S', iface_name]     
         log.debug("About to make SSH call: %s" % call)
 
         data = make_local_call(call)
