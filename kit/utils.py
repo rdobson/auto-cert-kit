@@ -361,9 +361,9 @@ class IfaceStats(object):
     def validate_args(self, rec):
         for key in self.required_keys:
             if key not in rec.keys():
-                raise Exception("Error: could not find key '%s' in " + \
-                                "iface statistics record '%s'" % 
-                                                            (key, rec))
+                raise Exception("Error: could not find key '%s'" % key + \
+                                " in iface statistics record '%s'" % rec) 
+                                                           
 
 ##### Logging setup
 
