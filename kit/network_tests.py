@@ -34,6 +34,7 @@ import testbase
 from utils import *
 import os.path
 import sys
+import math
 
 log = get_logger('auto-cert-kit')
 
@@ -47,12 +48,20 @@ class IperfTest:
                       'buffer_length': '256K',
                       'thread_count': '1'}
 
-    def __init__(self, session, client_vm_ref, server_vm_ref, network_ref,
-                username='root', password=DEFAULT_PASSWORD, config=None):
+    def __init__(self, session, 
+                       client_vm_ref, 
+                       server_vm_ref, 
+                       network_ref,
+                       static_manager,
+                       username='root', 
+                       password=DEFAULT_PASSWORD, 
+                       config=None):
+
         self.session = session
         self.server = server_vm_ref
         self.client = client_vm_ref
         self.network = network_ref
+        self.static_manager = static_manager
         self.username = username
         self.password = password
 
@@ -88,21 +97,61 @@ class IperfTest:
         server_stats = self.stats_rec[self.server]
 
         # Obtain current
+        log.debug("Get Client Stats:")
         client_now_stats = self.get_iface_stats(self.client)
+        log.debug("Get Server Stats:")
         server_now_stats = self.get_iface_stats(self.server)
 
-        # Tx Path
-        
-        diff_tx = client_now_stats.tx_bytes - client_stats.tx_bytes
-        if client_now_stats.tx_bytes - client_stats.tx_bytes < bytes_sent:
-            raise Exception("Expected '%d' bytes (tx) on '%s' not '%d'" % \
-                            (bytes_sent, client_stats.iface, diff_tx))
+    
+        def test_exp_bytes(start, end, total_transferred):
+            """Helper function for validating whether the correct
+            number of bytes have been transferred. Works within a
+            tollerance due to the fact other traffic might be present.
+            Also need to consider the 4G wrap around on the byte
+            counters stored in /proc/net/dev"""
+            wrap_limit = int(math.pow(2, 32)) #4Gb
+            threshold = 5 * int(math.pow(2,24)) #5mb
 
-        # Rx Path
-        diff_rx = client_now_stats.rx_bytes - client_stats.rx_bytes
-        if server_now_stats.rx_bytes - server_stats.rx_bytes < bytes_sent:
-            raise Exception("Expected '%d' bytes (rx) on '%s' not '%d'" % \
-                            (bytes_sent, server_stats.iface, diff_tx))
+            low = (start + total_transferred) % wrap_limit
+            high = low + threshold
+
+            res = end > low and end < high
+
+            if not res:
+                log.error("Err: Start '%d' End '%d' Trans '%d' Thres '%d'" % \
+                            (start, end, total_transferred, threshold))
+
+            return res
+         
+        if not test_exp_bytes(client_stats.tx_bytes,
+                              client_now_stats.tx_bytes,
+                              bytes_sent):
+            raise Exception("Mismatch in expected tx bytes on %s" % \
+                            client_stats.iface)
+
+        if not test_exp_bytes(server_stats.rx_bytes,
+                              server_now_stats.rx_bytes,
+                              bytes_sent):
+            raise Exception("Mismatch in expected rx bytes on %s" % \
+                            server_stats.iface)
+
+    def configure_routes(self):
+        """Ensure that the routing table is setup correctly in the client"""
+        log.debug("Configuring routes...")
+
+        # Make a plugin call to ensure the server is going to recieve
+        # packets over the correct interface
+
+        self.plugin_call('reset_arp',
+                    {'vm_ref': self.server,
+                    })
+        
+        # Make a plugin call to add a route to the client
+        self.plugin_call('add_route',
+                   {'vm_ref': self.client,
+                    'dest_ip': self.get_server_ip(),
+                    'device': self.get_device_name(self.client)}
+                    )
 
     def run(self):
         """This classes run test function"""
@@ -110,8 +159,10 @@ class IperfTest:
         self.run_iperf_server()
         log.debug("IPerf deployed and server started")
 
-        # Capture interface statistics pre test run
+        # Configure routes
+        self.configure_routes()
 
+        # Capture interface statistics pre test run
         self.record_stats()
 
         iperf_test_inst = TimeoutFunction(self.run_iperf_client, 
@@ -128,8 +179,24 @@ class IperfTest:
         return iperf_data
 
     ############# Utility Functions used by Class ###############
-    def get_server_ip(self, iface='eth0'):
-        return wait_for_ip(self.session, self.server, iface)
+    def get_server_ip(self, iface=None):
+        # By default return the interface the server will be listening on
+
+        if not iface:
+            iface = self.get_device_name(self.server)
+
+        if self.session.xenapi.VM.get_is_control_domain(self.server):
+            # Handle Dom0 Case
+            host_ref = self.session.xenapi.VM.get_resident_on(self.server)
+            ip = self.session.xenapi.host.call_plugin(host_ref,
+                                                      'autocertkit',
+                                                      'get_local_device_ip',
+                                                      {'device':iface})
+            return ip
+
+        else:
+            # Handle DroidVM Case
+            return wait_for_ip(self.session, self.server, iface)
 
     def get_client_ip(self, iface='eth0'):
         return wait_for_ip(self.session, self.client, iface)
@@ -145,16 +212,15 @@ class IperfTest:
         deploy(self.client)
         deploy(self.server)
 
-    
-    def get_iface_stats(self, vm_ref):
-        vm_host = self.session.xenap.VM.get_resident_on(vm_ref)
+    def get_device_name(self, vm_ref): 
+        vm_host = self.session.xenapi.VM.get_resident_on(vm_ref)
 
         if self.session.xenapi.VM.get_is_control_domain(vm_ref):
             # Handle the Dom0 case
-            pifs = self.session.xenapi.network.get_PIFs(self.network_for_test)
+            pifs = self.session.xenapi.network.get_PIFs(self.network)
             device_names = []
             for pif in pifs:
-                host_ref = self.session.xenapi.PIF.get_device(pif)
+                host_ref = self.session.xenapi.PIF.get_host(pif)
                 if vm_host == host_ref:
                     device_names.append(self.session.xenapi.PIF.get_device(pif))
                   
@@ -178,7 +244,12 @@ class IperfTest:
 
             device_name = "eth%s" % \
                           self.session.xenapi.VIF.get_device(int_vifs.pop())
+
+        return device_name 
     
+    def get_iface_stats(self, vm_ref):
+        device_name = self.get_device_name(vm_ref)
+
         # Make plugin call to get statistics
         return get_iface_statistics(self.session, vm_ref, device_name)
 
@@ -189,13 +260,26 @@ class IperfTest:
         if self.session.xenapi.VM.get_is_control_domain(self.server):
             host_ref = self.session.xenapi.VM.get_resident_on(self.server)
             log.debug("Host ref = %s" % host_ref)
-            self.session.xenapi.host.call_plugin(host_ref, 'autocertkit', 
-                                                 'start_iperf_server', 
-                                                 {})
+
+            args = {'device': self.get_device_name(self.server)}
+
+            if self.static_manager:
+                args['mode'] = 'static'
+                ip = self.static_manager.get_ip()
+                args['ip_addr'] = ip.addr
+                args['ip_netmask'] = ip.netmask
+            else:
+                args['mode'] = 'dhcp'
+
+            self.session.xenapi.host.call_plugin(host_ref, 
+                           'autocertkit', 
+                           'start_iperf_server', 
+                            args)
         else:
-            ip_address = wait_for_ip(self.session, self.server, 'eth0')
-            cmd_str = "iperf -s -D < /dev/null >&/dev/null"
-            ssh_command(ip_address, self.username, self.password, cmd_str)    
+            m_ip_address = self.get_server_ip('eth0')
+            test_ip = self.get_server_ip()
+            cmd_str = "iperf -s -D -B %s < /dev/null >&/dev/null" % test_ip
+            ssh_command(m_ip_address, self.username, self.password, cmd_str)    
 
     def parse_iperf_line(self, data):
         """Take a CSV line from iperf, parse, returning a dictionary"""
@@ -480,6 +564,8 @@ class IperfTestClass(testbase.NetworkTestClass):
         # are wanting to test
         self.network_for_test = self.get_networks()[0]
 
+        log.debug("Network for testing with: %s" % self.network_for_test)
+
         return [management_network_ref, self.network_for_test]
 
     def _setup_vms(self, session, network_refs):
@@ -546,7 +632,8 @@ class IperfTestClass(testbase.NetworkTestClass):
 
         #Run an iperf test - if failure, an exception should be raised.
         iperf_data = IperfTest(session, client, server, 
-                                self.network_for_test, 
+                                self.network_for_test,
+                                self.get_static_manager(self.network_for_test), 
                                 config=self.IPERF_ARGS).run()
 
         return {'info': 'Test ran successfully',
