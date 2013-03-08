@@ -820,7 +820,7 @@ def reset_arp(session, args):
         vm_m_ip = wait_for_ip(session, vm_ref, 'eth0')
         
         # Global ARP Ignore
-        cmd = "/bin/sysctl net.ipv4.conf.all.arp_ignore=1"
+        cmd = "%s net.ipv4.conf.all.arp_ignore=1" % SYSCTL
         call = [SSH, vm_m_ip, cmd]
         make_local_call(call)
 
