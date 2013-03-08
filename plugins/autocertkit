@@ -812,7 +812,7 @@ def reset_arp(session, args):
             if not bridge_ip:
                 raise Exception("Error: cannot find IP for bridge %s" % bridge)
 
-            call = [ARPING, "-c", '4', '-A', '-I', bridge, bridge_ip]
+            call = [ARPING, "-c", '10', '-A', '-I', bridge, bridge_ip]
             make_local_call(call)
         
     else:
@@ -831,7 +831,7 @@ def reset_arp(session, args):
        
             # Execute a gratuitus ARP for the device in question
             device_ip = wait_for_ip(session, vm_ref, device)
-            call = [SSH, vm_m_ip, ARPING, "-c", '4', '-A', '-I', device, device_ip]
+            call = [SSH, vm_m_ip, ARPING, "-c", '10', '-A', '-I', device, device_ip]
             make_local_call(call)
 
     return "OK"
