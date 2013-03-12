@@ -138,13 +138,6 @@ class IperfTest:
     def configure_routes(self):
         """Ensure that the routing table is setup correctly in the client"""
         log.debug("Configuring routes...")
-
-        # Make a plugin call to ensure the server is going to recieve
-        # packets over the correct interface
-
-        self.plugin_call('reset_arp',
-                    {'vm_ref': self.server,
-                    })
         
         # Make a plugin call to add a route to the client
         self.plugin_call('add_route',

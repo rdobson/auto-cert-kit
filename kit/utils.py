@@ -1333,9 +1333,6 @@ def deploy_two_droid_vms(session, network_refs, sms=None):
                                  'username': 'root',
                                  'password': DEFAULT_PASSWORD})
                                                     
-        # Ensure that we make sure the switch accesses IP addresses by 
-        # their own interfaces (avoid interface forwarding).        
-        call_ack_plugin(session, 'reset_arp', {'vm_ref': vm_ref})
 
     return vm1_ref, vm2_ref
 
