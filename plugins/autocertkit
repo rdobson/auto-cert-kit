@@ -78,6 +78,7 @@ SSH = "/usr/bin/ssh"
 IP = "/sbin/ip"
 ARPING = "/sbin/arping"
 DHCLIENT = "/sbin/dhclient"
+ARP = "/sbin/arp"
 IFCONFIG = "/sbin/ifconfig"
 SYSCTL = "/sbin/sysctl"
 CAT = "/bin/cat"
@@ -773,6 +774,7 @@ def add_route(session, args):
     vm_ref = validate_exists(args, 'vm_ref') 
     device = validate_exists(args, 'device')
     dest_ip = validate_exists(args, 'dest_ip')
+    dest_mac = validate_exists(args, 'dest_mac')
 
     # Mark VM oc with state in order to perform cleanup
     # later on. Need to do this before incase something
@@ -783,7 +785,7 @@ def add_route(session, args):
     session.xenapi.VM.set_other_config(vm_ref, other_config)
 
 
-    log.debug("add_route %s %s %s" % (vm_ref, device, dest_ip))
+    log.debug("add_route %s %s %s %s" % (vm_ref, device, dest_ip, dest_mac))
 
     if session.xenapi.VM.get_is_control_domain(vm_ref):
 
@@ -808,6 +810,13 @@ def add_route(session, args):
                 "dev", 
                 bridge]
 
+        make_local_call(call)
+
+        # 2. Add static ARP entry
+        call = [ARP, '-s', dest_ip, dest_mac]
+        make_local_call(call)
+        return "OK"
+
     else:
         # Handle the case we are adding a route to a VM
         vm_m_ip = wait_for_ip(session, vm_ref, 'eth0')
@@ -819,7 +828,18 @@ def add_route(session, args):
                 "dev",
                 device]
 
-    return make_local_call(call)
+        make_local_call(call)
+
+        # Add ARP entry
+        call = [SSH,
+                vm_m_ip,
+                ARP,
+                "-s",
+                dest_ip,
+                dest_mac]
+
+        make_local_call(call)
+        return "OK"
 
 
 @log_exceptions
@@ -830,6 +850,8 @@ def remove_route(session, args):
 
     if session.xenapi.VM.get_is_control_domain(vm_ref):
         call = [IP, 'route', 'del', dest_ip]
+        make_local_call(call)
+        call = [ARP, '-d', dest_ip]
         make_local_call(call)
     else:
         raise Exception("Not yet supported")
