@@ -242,6 +242,8 @@ class IperfTest:
                                 "Instead, '%s' were returned." % 
                                                 (pifs, device_names))
             device_name = device_names.pop()
+            # For control domains, only deal with bridges
+            device_name = device_name.replace('eth','xenbr')
 
         else:
             # Handle the case where we are dealing with a VM
