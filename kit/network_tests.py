@@ -446,8 +446,8 @@ class VLANTestClass(testbase.NetworkTestClass):
         # We may want to allocate static addresses to the different interfaces
         # differently, so collect the static ip managers in a record.
         sms = {}
-        sms[management_network_ref] = self.get_static_manager()
-        sms[vlan_network_ref] = self.get_static_manager(vlan=vlan_id)
+        sms[management_network_ref] = self.get_static_manager(management_network_ref)
+        sms[vlan_network_ref] = self.get_static_manager(vlan_network_ref, vlan=vlan_id)
         
         #Deploy two VMs
         vm1_ref, vm2_ref = deploy_two_droid_vms(session, network_refs, sms)
@@ -531,7 +531,7 @@ class BondingTestClass(testbase.NetworkTestClass):
         # for the physical network ID being used.
         sms = {}
         for net_ref in net_refs:
-            sms[net_ref] = self.get_static_manager()
+            sms[net_ref] = self.get_static_manager(net_ref)
 
         return deploy_two_droid_vms(session, net_refs, sms)
         
@@ -623,7 +623,7 @@ class IperfTestClass(testbase.NetworkTestClass):
         # Setup default static manager with the available interfaces    
         sms = {}
         for network_ref in network_refs:
-            sms[network_ref] = self.get_static_manager()
+            sms[network_ref] = self.get_static_manager(network_ref)
 
         return deploy_two_droid_vms(session, network_refs, sms)
 
@@ -633,7 +633,7 @@ class IperfTestClass(testbase.NetworkTestClass):
 
         sms = {}
         for network_ref in network_refs:
-            sms[network_ref] = self.get_static_manager()
+            sms[network_ref] = self.get_static_manager(network_ref)
     
         log.debug("Create droid")
         vm2_ref = deploy_slave_droid_vm(session, network_refs, sms)
@@ -920,7 +920,7 @@ class MTUPingTestClass(testbase.NetworkTestClass):
 
         sms = {}
         for net_ref in net_refs:
-            sms[net_ref] = self.get_static_manager()
+            sms[net_ref] = self.get_static_manager(net_ref)
 
         return deploy_two_droid_vms(session, net_refs, sms)
     
