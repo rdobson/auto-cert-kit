@@ -6,26 +6,26 @@ network_tests.BondingTestClass.test_nic_bond_active_backup
 Bonding test between two VMs (one on each host). Must establish
 that traffic fails over to the secondary interface.
 
-   # Setup VMs
-   # Setup Bond using active_backup mode (must include interface under test)
-   # Start a ping between VMs
-   # ifconfig down the first interface
-   # ifconfig up the first interface, ifconfig down the second
-   # Establish that 100% of traffic made the endpoint
-   # Capture the ping output
+    # Setup VMs
+    # Setup Bond using active_backup mode (must include interface under test)
+    # Start a ping between VMs
+    # ifconfig down the first interface
+    # ifconfig up the first interface, ifconfig down the second
+    # Establish that 100% of traffic made the endpoint
+    # Capture the ping output
 
 network_tests.BondingTestClass.test_nic_bond_balance_slb
 ----------------------------------------------------------
 Bonding test between two VMs (one on each host). Must establish
 that traffic fails over to the secondary interface.
 
-   # Setup VMs
-   # Setup Bond using balanced_slb mode (must include interface under test)
-   # Start a ping between VMs
-   # ifconfig down the first interface
-   # ifconfig up the first interface, ifconfig down the second
-   # Establish that 100% of traffic made the endpoint
-   # Capture the ping output
+    # Setup VMs
+    # Setup Bond using balanced_slb mode (must include interface under test)
+    # Start a ping between VMs
+    # ifconfig down the first interface
+    # ifconfig up the first interface, ifconfig down the second
+    # Establish that 100% of traffic made the endpoint
+    # Capture the ping output
 
 
 
@@ -37,14 +37,14 @@ runs a number of iperf tests, with particular configuration changes.
 Each test will indicate the specified offload configuration, and required
 XenServer networking backened. 
 
-   # Configure hardware offloads
-   # Verify that XenServer the correct backend.
-   # Setup iperf server in one dom0
-   # Setup iperf client in the other dom0
-   # Run iperf from client to server
-      iperf -y csv -w 256K -l 256K -f m -P 4 -m -c <SERVER_IP>
-   # Capture and label the results
-   # Repeat the above steps, reversing server and client
+    # Configure hardware offloads
+    # Verify that XenServer the correct backend.
+    # Setup iperf server in one dom0
+    # Setup iperf client in the other dom0
+    # Run iperf from client to server
+       iperf -y csv -w 256K -l 256K -f m -P 4 -m -c <SERVER_IP>
+    # Capture and label the results
+    # Repeat the above steps, reversing server and client
 
 network_tests.Dom0BridgePIFParamTestClass1
 ------------------------------------------
