@@ -102,7 +102,7 @@ class TestClass(object):
             # Ensure that we cleanup before running tests, in case
             # the system has been left in a failed state. 
             pool_wide_cleanup(self.session)
-            rec = {}
+            rec = {'result':'fail'}
             try:
                 log.debug("******** %s.%s ********" % (self.__class__.__name__, str(test)))
                 res = getattr(self, test)(self.session)
@@ -118,6 +118,9 @@ class TestClass(object):
                 copy_field(rec, res, 'info')
                 copy_field(rec, res, 'data')
                 copy_field(rec, res, 'config')
+        
+            except HardwareError, e:
+                log.debug("Hardware Exception %s" % str(e))
 
             except Exception, e:
                 traceb = traceback.format_exc()

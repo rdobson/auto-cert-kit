@@ -735,7 +735,7 @@ class PIFParamTestClass(IperfTestClass):
         for k, v in hw_offloads.iteritems():
             log.debug("Device: %s (%s offload: %s)" % (device,k, v))
             if config[k] != v.strip():
-                raise Exception("%s offload was not in the correct state (is %s)" %
+                raise HardwareError("%s offload was not in the correct state (is %s)" %
                                 (k, v))
                                 
     def _setup_pif_params(self, session, network_ref):

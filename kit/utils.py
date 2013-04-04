@@ -102,6 +102,13 @@ class InvalidArgument(ArgumentError):
     def __str__(self):
         return repr("INVALID_ARGUMENT: Argument Name: %s, Provided Value: '%s', Possible Options: %s" % (self.arg_name, self.value, self.possibles))
 
+class HardwareError(Exception):
+    """Raised when the kit encounters a problem due an invalid
+    conifguration of hardware"""
+
+    def __init__(self, *args):
+        Exception.__init__(self, *args)
+
 ##### Exception Decorator
 def log_exceptions(func):
     def decorated(*args, **kwargs):
