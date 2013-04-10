@@ -73,7 +73,7 @@ class IperfTest:
         # Store pool master in order to make plugin calls
         self.host = get_pool_master(self.session)
 
-        self.timeout = 60
+        self.timeout = 120
 
         #Validate the references and setup run method
         #self.validate_refs()
