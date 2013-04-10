@@ -378,7 +378,8 @@ def make_local_call(call):
     stdout, stderr = process.communicate()
     if process.returncode == 0:
         res = str(stdout).strip()
-        return str(stdout).strip()
+        log.debug("Call '%s' returned '%s'" % (call, res))
+        return res
     else:
         msg = "ERR: Could not make local call %s" % ' '.join(call)
         log.error(msg)
