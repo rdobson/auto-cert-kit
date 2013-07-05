@@ -1130,6 +1130,7 @@ def pool_wide_cleanup(session, tag=FOR_CLEANUP):
     and remove them as part of a cleanup operation"""
     log.debug("**Performing pool wide cleanup...**")
     pool_wide_vm_cleanup(session, tag)
+    pool_wide_pif_cleanup(session, tag)
     pool_wide_network_cleanup(session, tag)
     pool_wide_host_cleanup(session)
 
@@ -1220,6 +1221,22 @@ def pool_wide_network_cleanup(session, tag):
             session.xenapi.network.destroy(network)
         elif session.xenapi.network.get_MTU(network) != '1500':
             set_network_mtu(session, network, '1500')
+
+def pool_wide_pif_cleanup(session, tag):
+    """Searches for PIFs with a cleanup tag, and removes
+    their IP address if found."""
+
+    pifs = session.xenapi.PIF.get_all()
+    for pif in pifs:
+        if tag in session.xenapi.PIF.get_other_config(pif):
+            log.debug("Attempting to remove IP on PIF %s" % pif)
+            session.xenapi.PIF.reconfigure_ip(pif, 
+                                             'none', 
+                                             '', 
+                                             '', 
+                                             '', 
+                                             '')
+
 
 def get_pool_management_device(session):
     """Returns the device used for XAPI mangagment"""
